@@ -2,7 +2,7 @@ const path = require('path');
 const express = require('express');
 const hbs = require('hbs');
 
-const geocode = require('./utils/geocode');
+const { geocode, geodecode } = require('./utils/geocode');
 const forecast = require('./utils/forecast');
 
 const app = express();
@@ -44,32 +44,57 @@ app.get('/help', (req, res) => {
 });
 
 app.get('/weather', (req, res) => {
+    console.log(req.query.address)
     if (!req.query.address) {
         return res.send({
             error: 'You must provide an address'
-        });
-    }
-    geocode(req.query.address, (error, { latitude, longitude, location} = {}) => {
-        if(error) {
-            return res.send({
-                error
-            }); // abort the callback if an error occurred. It will not reach forecast()
-        }
-        forecast(latitude, longitude, (error, forecastData) => {
-            if (error) {
+        })
+    } else if (req.query.address.match(/^-?\d+\.?\d+,-?\d+\.?\d+$/)) {
+        const coordinates = req.query.address.split(',')
+        
+        geodecode(coordinates[0], coordinates[1], (error, { location } = {}) => {
+            if(error) {
                 return res.send({
                     error
-                }); // abort the callback if an error occurred. It will not reach forecast()
+                }) 
             }
-            res.send({
-                forecast: forecastData,
-                location,
-                address: req.query.address
-            });
+            forecast(coordinates[0], coordinates[1], (error, forecastData) => {
+                if (error) {
+                    return res.send({
+                        error
+                    }) // abort the callback if an error occurred. It will not reach forecast()
+                }
+                res.send({
+                    forecast: forecastData,
+                    location,
+                    address: req.query.location
+                })
+            })
+        })
 
-        });
-    });
-});
+    } else {
+        geocode(req.query.address, (error, { latitude, longitude, location } = {}) => {
+            if(error) {
+                return res.send({
+                    error
+                }) // abort the callback if an error occurred. It will not reach forecast()
+            }
+            forecast(latitude, longitude, (error, forecastData) => {
+                if (error) {
+                    return res.send({
+                        error
+                    }) // abort the callback if an error occurred. It will not reach forecast()
+                }
+                res.send({
+                    forecast: forecastData,
+                    location,
+                    address: req.query.address
+                })
+            })
+        })
+    }
+})
+
 
 app.get('/products', (req, res) => {
     if(!req.query.search) {
